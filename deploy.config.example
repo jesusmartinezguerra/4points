@@ -1,0 +1,13 @@
+# Copia este fichero a deploy.config y ajusta la ruta.
+# deploy.config esta en .gitignore: es especifico de cada maquina y no se versiona.
+#
+# MT5_TERMINAL_DIR debe apuntar a la carpeta que CONTIENE MQL5/, no a MQL5/ misma.
+# En MetaTrader 5 la encuentras en:  Archivo > Abrir carpeta de datos
+#
+# Windows:
+# MT5_TERMINAL_DIR="C:/Users/<user>/AppData/Roaming/MetaQuotes/Terminal/<terminal-id>"
+#
+# Linux con MT5 bajo Wine:
+# MT5_TERMINAL_DIR="$HOME/.mt5/drive_c/users/$USER/AppData/Roaming/MetaQuotes/Terminal/<terminal-id>"
+
+MT5_TERMINAL_DIR=""
