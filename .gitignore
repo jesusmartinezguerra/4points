@@ -35,3 +35,6 @@ desktop.ini
 
 # --- Claude Code local
 .claude/settings.local.json
+
+# --- Scratch de ejecucion de planes (subagent-driven-development)
+.superpowers/
