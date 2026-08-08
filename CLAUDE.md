@@ -76,6 +76,14 @@ Definidas en `.claude/skills/`. Las relevantes al escribir código aquí:
 - **Function ownership** (`candles-and-series`): cada detector carga sus propias velas. Para que siga siendo testeable, cada clase expone **dos** entradas: `Load()`, que hace el `CopyRates` internamente y es la que usan indicador y EA, y `Evaluate(const MqlRates &rates[])`, que recibe el array ya cargado y es la que usan los tests con series sintéticas.
 - **Git** (`git`): ramas `feature/`, `fix/`, `chore/`, `docs/`, `refactor/`, `test/`. Commits `type(scope): summary` en minúsculas y sin punto final.
 
+## Cuenta MT5 en vivo — pedir permiso antes de usarla
+
+La PC tiene MT5 y Python instalados, con varias skills de backtesting (`run-backtests`, `optimize`, `analyze`, `orquestate`) y un MCP (`mcp__metatrader__*`, y `interface.py`) **conectado a la cuenta real del usuario**.
+
+- **Antes de invocar cualquiera de esas skills o herramientas MCP**, incluso para algo aparentemente de solo lectura como consultar precio o posiciones, pide permiso explícito en el chat y espera confirmación. No asumas autorización previa de una sesión anterior.
+- Esto aplica en particular a cualquier acción con efecto en la cuenta: abrir/cerrar posiciones, órdenes pendientes, modificar SL/TP. Esas nunca se ejecutan sin una confirmación explícita y específica para esa acción.
+- Escribir o compilar código MQL5, o correr `TestRunner.mq5` con series sintéticas, no toca la cuenta y no requiere este permiso.
+
 ## Rutas y portabilidad
 
 Nada en el repo contiene rutas absolutas. La única ruta específica de máquina es `MT5_TERMINAL_DIR`, que vive en `deploy.config` (ignorado por git) y solo la usan los scripts de deploy y las invocaciones de MetaEditor.
