@@ -10,6 +10,7 @@
 #include "Tests/TestHelpers.mqh"
 #include "Tests/AtrUtilsTests.mqh"
 #include "Tests/SwingDetectorTests.mqh"
+#include "Tests/StructureStateTests.mqh"
 
 void OnStart()
   {
@@ -17,6 +18,7 @@ void OnStart()
 
    RunAtrUtilsTests();
    RunSwingDetectorTests();
+   RunStructureStateTests();
 
    PrintTestSummary();
   }
