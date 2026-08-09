@@ -11,6 +11,7 @@
 #include "Tests/AtrUtilsTests.mqh"
 #include "Tests/SwingDetectorTests.mqh"
 #include "Tests/StructureStateTests.mqh"
+#include "Tests/TrendFilterTests.mqh"
 
 void OnStart()
   {
@@ -19,6 +20,7 @@ void OnStart()
    RunAtrUtilsTests();
    RunSwingDetectorTests();
    RunStructureStateTests();
+   RunTrendFilterTests();
 
    PrintTestSummary();
   }
