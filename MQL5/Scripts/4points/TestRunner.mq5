@@ -8,10 +8,13 @@
 #property strict
 
 #include "Tests/TestHelpers.mqh"
+#include "Tests/AtrUtilsTests.mqh"
 
 void OnStart()
   {
    ResetTestCounters();
+
+   RunAtrUtilsTests();
 
    PrintTestSummary();
   }
