@@ -9,12 +9,14 @@
 
 #include "Tests/TestHelpers.mqh"
 #include "Tests/AtrUtilsTests.mqh"
+#include "Tests/SwingDetectorTests.mqh"
 
 void OnStart()
   {
    ResetTestCounters();
 
    RunAtrUtilsTests();
+   RunSwingDetectorTests();
 
    PrintTestSummary();
   }

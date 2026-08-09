@@ -45,6 +45,13 @@ void BuildRatesSeries(const datetime &times[], const double &opens[], const doub
   {
    int n = ArraySize(times);
    ArrayResize(out, n);
+   // El flag AS_SERIES debe fijarse ANTES de escribir: ArraySetAsSeries invierte el
+   // mapeo indice->posicion fisica para TODO acceso futuro (lectura y escritura) con
+   // ese flag activo. Si se fijara despues de un bucle que ya escribio en orden
+   // invertido "a mano", el flag revertiria esa inversion por segunda vez y el
+   // resultado neto seria el orden cronologico original (bug ya detectado y corregido
+   // aqui: ver Task 3 SwingDetector, que expuso el problema).
+   ArraySetAsSeries(out, true);
    for(int i = 0; i < n; i++)
      {
       int src = n - 1 - i; // invierte: la ultima entrada cronologica va al indice 0
@@ -57,7 +64,6 @@ void BuildRatesSeries(const datetime &times[], const double &opens[], const doub
       out[i].spread       = 0;
       out[i].real_volume  = 0;
      }
-   ArraySetAsSeries(out, true);
   }
 
 #endif // FOURPOINTS_TESTHELPERS_MQH
