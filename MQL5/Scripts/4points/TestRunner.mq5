@@ -12,6 +12,7 @@
 #include "Tests/SwingDetectorTests.mqh"
 #include "Tests/StructureStateTests.mqh"
 #include "Tests/TrendFilterTests.mqh"
+#include "Tests/PatternDetectorTests.mqh"
 
 void OnStart()
   {
@@ -21,6 +22,7 @@ void OnStart()
    RunSwingDetectorTests();
    RunStructureStateTests();
    RunTrendFilterTests();
+   RunPatternDetectorTests();
 
    PrintTestSummary();
   }
