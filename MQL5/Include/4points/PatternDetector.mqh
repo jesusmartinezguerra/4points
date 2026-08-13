@@ -42,6 +42,19 @@ public:
       return Evaluate(rates, direction, points, stage);
      }
 
+   //+------------------------------------------------------------------+
+   //| Recorre la lista de swings (cronologica, mas antiguo primero) y   |
+   //| devuelve el ciclo P1->P2->P3->P4 mas RECIENTE, no el primero que  |
+   //| completa. Para eso el escaneo nunca se detiene al llegar a        |
+   //| STAGE_P4: guarda ese ciclo como "ultimo completo" (best_*),       |
+   //| reinicia el intento en curso a STAGE_IDLE y sigue consumiendo     |
+   //| swings desde el mismo punto (sin reiniciar el bucle) por si hay   |
+   //| un ciclo todavia mas nuevo despues. Si el intento en curso tras   |
+   //| el reinicio nunca vuelve a completar, se descarta y se devuelve   |
+   //| el ultimo ciclo completo (best_*); solo si NINGUN ciclo llego a   |
+   //| completarse en toda la serie se devuelve el progreso parcial del  |
+   //| ultimo intento (cur_*).                                           |
+   //+------------------------------------------------------------------+
    bool Evaluate(const MqlRates &rates[], const EDirection direction, SPatternPoints &points, EPatternStage &stage)
      {
       points.Reset();
@@ -56,94 +69,124 @@ public:
       ESwingType origin_type   = (direction == DIR_BUY) ? SWING_LOW  : SWING_HIGH;
       ESwingType impulse_type  = (direction == DIR_BUY) ? SWING_HIGH : SWING_LOW;
 
+      SPatternPoints cur;                        // intento de ciclo en curso
+      EPatternStage  cur_stage = STAGE_IDLE;
+      SPatternPoints best;                        // ultimo ciclo P1..P4 completo visto
+      EPatternStage  best_stage = STAGE_IDLE;      // STAGE_P4 si "best" contiene algo valido
+
       for(int i = 0; i < ArraySize(swings); i++)
         {
          SSwing s = swings[i];
 
-         if(stage == STAGE_IDLE)
+         if(cur_stage == STAGE_IDLE)
            {
             if(s.type == origin_type)
               {
-               points.p1 = s;
-               stage = STAGE_P1;
+               cur.p1 = s;
+               cur_stage = STAGE_P1;
               }
             continue;
            }
 
-         if(stage == STAGE_P1)
+         if(cur_stage == STAGE_P1)
            {
             if(s.type == origin_type)
               {
-               bool more_extreme = (direction == DIR_BUY) ? (s.price < points.p1.price) : (s.price > points.p1.price);
+               bool more_extreme = (direction == DIR_BUY) ? (s.price < cur.p1.price) : (s.price > cur.p1.price);
                if(more_extreme)
-                  points.p1 = s;
+                  cur.p1 = s;
                continue;
               }
-            double leg = MathAbs(s.price - points.p1.price);
+            double leg = MathAbs(s.price - cur.p1.price);
             double atr = SimpleATR(rates, m_atr_period, s.bar_shift);
             if(atr > 0.0 && leg >= m_min_impulse_atr * atr)
               {
-               points.p2 = s;
-               stage = STAGE_P2;
+               cur.p2 = s;
+               cur_stage = STAGE_P2;
               }
             continue;
            }
 
-         if(stage == STAGE_P2)
+         if(cur_stage == STAGE_P2)
            {
             if(s.type == impulse_type)
               {
-               bool more_extreme = (direction == DIR_BUY) ? (s.price > points.p2.price) : (s.price < points.p2.price);
+               bool more_extreme = (direction == DIR_BUY) ? (s.price > cur.p2.price) : (s.price < cur.p2.price);
                if(more_extreme)
-                  points.p2 = s;
+                  cur.p2 = s;
                continue;
               }
-            bool higher_low_ok = (direction == DIR_BUY) ? (s.price > points.p1.price) : (s.price < points.p1.price);
+            bool higher_low_ok = (direction == DIR_BUY) ? (s.price > cur.p1.price) : (s.price < cur.p1.price);
             if(!higher_low_ok)
               {
                SSwing new_origin = s;
-               points.Reset();
-               points.p1 = new_origin;
-               stage = STAGE_P1;
+               cur.Reset();
+               cur.p1 = new_origin;
+               cur_stage = STAGE_P1;
                continue;
               }
-            double leg_p1_p2 = MathAbs(points.p2.price - points.p1.price);
-            double retrace = (leg_p1_p2 > 0.0) ? MathAbs(points.p2.price - s.price) / leg_p1_p2 : 0.0;
+            double leg_p1_p2 = MathAbs(cur.p2.price - cur.p1.price);
+            double retrace = (leg_p1_p2 > 0.0) ? MathAbs(cur.p2.price - s.price) / leg_p1_p2 : 0.0;
             if(retrace >= m_min_retrace && retrace <= m_max_retrace)
               {
-               points.p3 = s;
-               stage = STAGE_P3;
+               cur.p3 = s;
+               cur_stage = STAGE_P3;
               }
             continue;
            }
 
-         if(stage == STAGE_P3)
+         if(cur_stage == STAGE_P3)
            {
             if(s.type == origin_type)
               {
-               bool higher_low_ok = (direction == DIR_BUY) ? (s.price > points.p1.price) : (s.price < points.p1.price);
+               bool higher_low_ok = (direction == DIR_BUY) ? (s.price > cur.p1.price) : (s.price < cur.p1.price);
                if(!higher_low_ok)
                  {
                   SSwing new_origin = s;
-                  points.Reset();
-                  points.p1 = new_origin;
-                  stage = STAGE_P1;
+                  cur.Reset();
+                  cur.p1 = new_origin;
+                  cur_stage = STAGE_P1;
                   continue;
                  }
-               points.p3 = s;
+               // Candidato a reemplazar P3: debe superar el mismo filtro de
+               // retroceso que el P3 original, o se descarta y se conserva
+               // el P3 vigente (que ya era valido). Sin este chequeo, un
+               // reemplazo con retroceso fuera de [min_retrace,max_retrace]
+               // se colaba sin validar y un P4 posterior confirmaba el
+               // patron sobre un pullback que nunca deberia haberse aceptado.
+               double leg_p1_p2 = MathAbs(cur.p2.price - cur.p1.price);
+               double retrace = (leg_p1_p2 > 0.0) ? MathAbs(cur.p2.price - s.price) / leg_p1_p2 : 0.0;
+               if(retrace >= m_min_retrace && retrace <= m_max_retrace)
+                  cur.p3 = s;
                continue;
               }
-            bool higher_high_ok = (direction == DIR_BUY) ? (s.price > points.p2.price) : (s.price < points.p2.price);
+            bool higher_high_ok = (direction == DIR_BUY) ? (s.price > cur.p2.price) : (s.price < cur.p2.price);
             if(higher_high_ok)
               {
-               points.p4 = s;
-               stage = STAGE_P4;
+               cur.p4 = s;
+               cur_stage = STAGE_P4;
+
+               // Ciclo completo: se guarda como el mas reciente visto hasta
+               // ahora y se reinicia el intento en curso para seguir
+               // buscando uno todavia mas nuevo, sin reiniciar el bucle.
+               best = cur;
+               best_stage = STAGE_P4;
+               cur.Reset();
+               cur_stage = STAGE_IDLE;
               }
             continue;
            }
+        }
 
-         if(stage == STAGE_P4)
-            break;
+      if(best_stage == STAGE_P4)
+        {
+         points = best;
+         stage  = best_stage;
+        }
+      else
+        {
+         points = cur;
+         stage  = cur_stage;
         }
 
       return true;

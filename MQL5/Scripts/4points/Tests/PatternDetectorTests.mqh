@@ -16,10 +16,12 @@
 // cada lado -- si esos vecinos no han sido tambien tocados. Un "low" plantado por
 // ENCIMA de 95 (o un "high" por DEBAJO de 100) nunca se confirma como swing, por mucho
 // que la aritmetica del retroceso parezca correcta sobre el papel.
+// n es el numero total de velas sinteticas (por defecto 20, como en los casos
+// originales); se puede ampliar para escenarios que necesitan mas de 4 puntos
+// plantados sin que se pisen las ventanas de fractal (izq/der = 2) entre ellos.
 void BuildPatternScenario(const int &idx[], const double &hval[], const double &lval[], const int count,
-                           MqlRates &out[])
+                           MqlRates &out[], const int n = 20)
   {
-   int n = 20;
    datetime t[]; double o[], h[], l[], c[];
    ArrayResize(t, n); ArrayResize(o, n); ArrayResize(h, n); ArrayResize(l, n); ArrayResize(c, n);
    for(int i = 0; i < n; i++)
@@ -123,6 +125,58 @@ void RunPatternDetectorTests()
    SPatternPoints points6; EPatternStage stage6;
    det.Evaluate(rates6, DIR_SELL, points6, stage6);
    Assert(stage6 == STAGE_P4, "PatternDetector: secuencia SELL (espejo) llega a STAGE_P4");
+
+   // --- Caso 7: dos ciclos P1..P4 completos en la misma serie -> debe reportar el
+   // MAS RECIENTE (ciclo B), no el primero que completa (ciclo A). Sin esta cobertura
+   // el bug de "Evaluate corta el escaneo en el primer STAGE_P4" (detectado en review)
+   // habria pasado desapercibido: con un solo ciclo por escenario, "primero" y "mas
+   // reciente" coinciden y no distinguen la implementacion correcta de la incorrecta.
+   //
+   // Ciclo A (mas antiguo, idx 3,7,11,15): P1=70, P2=110, P3=90 (retroceso 0.5), P4=115.
+   // Ciclo B (mas reciente, idx 19,23,27,31): P1=50, P2=104, P3=77 (retroceso 0.5), P4=108.
+   // Ambos ciclos usan valores propios (no reciclados) para que las aserciones puedan
+   // distinguir sin ambiguedad cual de los dos quedo reportado. n=36 para que quepan
+   // los 8 puntos plantados (separacion 4 entre indices, igual que en los demas casos)
+   // sin invadir el margen de 2 barras que exige el fractal en ningun extremo.
+   int    idx7[]  = {3, 7, 11, 15, 19, 23, 27, 31};
+   double hval7[] = {0.0, 110.0, 0.0, 115.0, 0.0, 104.0, 0.0, 108.0};
+   double lval7[] = {70.0, 0.0, 90.0, 0.0, 50.0, 0.0, 77.0, 0.0};
+   MqlRates rates7[];
+   BuildPatternScenario(idx7, hval7, lval7, 8, rates7, 36);
+   SPatternPoints points7; EPatternStage stage7;
+   det.Evaluate(rates7, DIR_BUY, points7, stage7);
+   Assert(stage7 == STAGE_P4, "PatternDetector: con dos ciclos completos llega a STAGE_P4");
+   if(stage7 == STAGE_P4)
+     {
+      Assert(MathAbs(points7.p1.price - 50.0) < 0.0001, "PatternDetector: reporta el P1 del ciclo mas reciente (50), no el del primero (70)");
+      Assert(MathAbs(points7.p2.price - 104.0) < 0.0001, "PatternDetector: reporta el P2 del ciclo mas reciente (104), no el del primero (110)");
+      Assert(MathAbs(points7.p3.price - 77.0) < 0.0001, "PatternDetector: reporta el P3 del ciclo mas reciente (77), no el del primero (90)");
+      Assert(MathAbs(points7.p4.price - 108.0) < 0.0001, "PatternDetector: reporta el P4 del ciclo mas reciente (108), no el del primero (115)");
+     }
+
+   // --- Caso 8: un candidato a reemplazar P3 con retroceso fuera de rango debe
+   // rechazarse y conservar el P3 vigente, no colarse sin validar. Sin esta cobertura
+   // el bug de "STAGE_P3 reemplaza points.p3 sin volver a comprobar el retroceso"
+   // (detectado en review) habria pasado desapercibido.
+   //
+   // P1=10 (idx3), P2=105 (idx7): pierna=95. P3=57.5 (idx11) confirma con retroceso
+   // (105-57.5)/95=0.5, valido -> STAGE_P3. Luego un HIGH=102 (idx15) no supera P2(105),
+   // se ignora sin tocar P3. Luego un candidato a reemplazo P3'=90 (idx19): sigue siendo
+   // un "higher low" valido (90>10) pero su retroceso (105-90)/95=0.1579 esta fuera de
+   // [0.2,0.8] -> debe descartarse, P3 debe seguir siendo 57.5. Por ultimo un
+   // HIGH=115 (idx23) SI supera P2(105) y confirma P4 -- pero apoyado en el P3 original
+   // (57.5), no en el candidato invalido (90).
+   int    idx8[]  = {3, 7, 11, 15, 19, 23};
+   double hval8[] = {0.0, 105.0, 0.0, 102.0, 0.0, 115.0};
+   double lval8[] = {10.0, 0.0, 57.5, 0.0, 90.0, 0.0};
+   MqlRates rates8[];
+   BuildPatternScenario(idx8, hval8, lval8, 6, rates8, 28);
+   SPatternPoints points8; EPatternStage stage8;
+   det.Evaluate(rates8, DIR_BUY, points8, stage8);
+   Assert(stage8 == STAGE_P4, "PatternDetector: el patron completa pese al candidato de reemplazo invalido");
+   if(stage8 == STAGE_P4)
+      Assert(MathAbs(points8.p3.price - 57.5) < 0.0001,
+             "PatternDetector: conserva el P3 original (57.5), no acepta el reemplazo con retroceso fuera de rango (90)");
   }
 
 #endif // FOURPOINTS_PATTERNDETECTORTESTS_MQH
