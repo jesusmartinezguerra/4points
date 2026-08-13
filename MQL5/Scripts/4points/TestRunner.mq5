@@ -13,6 +13,7 @@
 #include "Tests/StructureStateTests.mqh"
 #include "Tests/TrendFilterTests.mqh"
 #include "Tests/PatternDetectorTests.mqh"
+#include "Tests/LiquiditySweepTests.mqh"
 
 void OnStart()
   {
@@ -23,6 +24,7 @@ void OnStart()
    RunStructureStateTests();
    RunTrendFilterTests();
    RunPatternDetectorTests();
+   RunLiquiditySweepTests();
 
    PrintTestSummary();
   }
