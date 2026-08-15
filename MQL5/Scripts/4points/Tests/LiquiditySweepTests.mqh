@@ -121,6 +121,61 @@ void RunLiquiditySweepTests()
    bool sweptE;
    sweepE.Evaluate(ratesA, DIR_BUY, pointsE, sweptE);
    Assert(sweptE, "LiquiditySweep: SWEEP_ANY acepta un BREACH_P3 valido");
+
+   // --- Caso 6: un minimo MAS PROFUNDO en una vela posterior, que si cruza
+   // P1, invalida el barrido aunque la primera perforacion (s=4, low=88)
+   // fuese superficial y aunque una vela todavia mas tardia (s=2) hubiera
+   // cerrado por encima de P3. L_s es el minimo de TODO el barrido, no solo
+   // de la primera vela que perfora: por eso se revisa "mas alla de P1"
+   // vela a vela, no una unica vez al principio.
+   //
+   // Verificado a mano contra la implementacion ANTERIOR al fix (la que solo
+   // comprobaba "mas alla de P1" en la primera vela que perfora, rates[i]):
+   // con estos mismos datos habria devuelto swept=true (extreme fijo en 88,
+   // nunca revisado contra el low=75 de s=3; recuperacion encontrada en
+   // s=2 con close=91). Con el fix, extreme se actualiza a 75 en s=3 y
+   // "mas alla de P1" (75<=80) corta el barrido antes de llegar a revisar
+   // el cierre de s=2.
+   MqlRates ratesF[];
+   { datetime tF[]; double oF[], hF[], lF[], cF[];
+     ArrayResize(tF,n); ArrayResize(oF,n); ArrayResize(hF,n); ArrayResize(lF,n); ArrayResize(cF,n);
+     for(int i=0;i<n;i++){ tF[i]=t[i]; hF[i]=h[i]; lF[i]=l[i]; oF[i]=o[i]; cF[i]=c[i]; }
+     oF[3]=88.5; hF[3]=90.0; lF[3]=88.0; cF[3]=89.0; // s=4: perfora superficial (88 > P1=80), no recupera
+     oF[4]=76.0; hF[4]=78.0; lF[4]=75.0; cF[4]=76.0; // s=3: minimo mas profundo, cruza P1=80 -> invalida
+     oF[5]=90.7; hF[5]=91.5; lF[5]=90.5; cF[5]=91.0; // s=2: cerraria por encima de P3, pero ya es invalido
+     BuildRatesSeries(tF, oF, hF, lF, cF, ratesF); }
+   SPatternPoints pointsF = BuildPointsForSweep(5, 80.0, 90.0);
+   CLiquiditySweep sweepF(SWEEP_BREACH_P3, 0.10, 3, 5);
+   bool sweptF;
+   sweepF.Evaluate(ratesF, DIR_BUY, pointsF, sweptF);
+   Assert(!sweptF, "LiquiditySweep: un minimo posterior mas profundo que cruza P1 invalida el barrido");
+
+   // --- Caso 7: max_sweep_bars=1 hace que una recuperacion tardia (fuera de
+   // la ventana) no cuente. La perforacion esta en s=4 (unica vela que el
+   // bucle externo llega a examinar, porque (search_start-i) < 1 solo admite
+   // i=4). El bucle interno de recuperacion, con max_sweep_bars=1, cubre
+   // j=4 y j=3 ((i-j)<=1) pero NO j=2 ((i-j)=2>1, fuera de rango). Ninguna
+   // de las dos velas que si se examinan (s=4, s=3) recupera; el cierre que
+   // si recupera esta en s=2, deliberadamente fuera de la ventana.
+   //
+   // Verificado a mano: con max_sweep_bars=5 (como en los otros casos) estos
+   // mismos datos SI producirian swept=true (el bucle interno llegaria hasta
+   // j=2 y encontraria close=91 > P3=90). El unico motivo por el que este
+   // caso da swept=false es max_sweep_bars=1 recortando la ventana -- por
+   // eso ejercita de verdad el limite, no es un caso vacio.
+   MqlRates ratesG[];
+   { datetime tG[]; double oG[], hG[], lG[], cG[];
+     ArrayResize(tG,n); ArrayResize(oG,n); ArrayResize(hG,n); ArrayResize(lG,n); ArrayResize(cG,n);
+     for(int i=0;i<n;i++){ tG[i]=t[i]; hG[i]=h[i]; lG[i]=l[i]; oG[i]=o[i]; cG[i]=c[i]; }
+     oG[3]=88.5; hG[3]=90.0; lG[3]=88.0; cG[3]=89.0; // s=4: perfora, no recupera en su propia vela
+     oG[4]=92.5; hG[4]=93.0; lG[4]=92.0; cG[4]=89.0; // s=3: dentro de la ventana (max_sweep_bars=1), no recupera
+     oG[5]=90.7; hG[5]=91.5; lG[5]=90.5; cG[5]=91.0; // s=2: recuperaria, pero cae fuera de la ventana de 1 vela
+     BuildRatesSeries(tG, oG, hG, lG, cG, ratesG); }
+   SPatternPoints pointsG = BuildPointsForSweep(5, 80.0, 90.0);
+   CLiquiditySweep sweepG(SWEEP_BREACH_P3, 0.10, 3, 1);
+   bool sweptG;
+   sweepG.Evaluate(ratesG, DIR_BUY, pointsG, sweptG);
+   Assert(!sweptG, "LiquiditySweep: max_sweep_bars=1 descarta una recuperacion fuera de la ventana");
   }
 
 #endif // FOURPOINTS_LIQUIDITYSWEEPTESTS_MQH

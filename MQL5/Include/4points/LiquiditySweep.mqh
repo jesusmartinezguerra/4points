@@ -82,19 +82,35 @@ private:
          if(!breaches)
             continue;
 
-         bool beyond_origin = (direction == DIR_BUY) ? (rates[i].low <= p1_price) : (rates[i].high >= p1_price);
-         if(beyond_origin)
-            return false;
-
-         double extreme = (direction == DIR_BUY) ? rates[i].low : rates[i].high;
+         // L_s es el minimo (BUY) / maximo (SELL) de TODO el barrido, no solo
+         // de la vela de la primera perforacion: se actualiza vela a vela
+         // mientras se recorre la ventana de recuperacion, y "mas alla de P1"
+         // se revalida contra ese extremo corrido en cada paso, no una sola
+         // vez al principio. Si el precio sigue cayendo (BUY) / subiendo
+         // (SELL) despues de la primera perforacion y cruza P1 en una vela
+         // posterior, el barrido queda invalidado aunque luego recupere.
+         double   extreme      = (direction == DIR_BUY) ? rates[i].low : rates[i].high;
+         datetime extreme_time = rates[i].time;
 
          for(int j = i; j >= 0 && (i - j) <= m_max_sweep_bars; j--)
            {
+            double candidate     = (direction == DIR_BUY) ? rates[j].low : rates[j].high;
+            bool   more_extreme  = (direction == DIR_BUY) ? (candidate < extreme) : (candidate > extreme);
+            if(more_extreme)
+              {
+               extreme      = candidate;
+               extreme_time = rates[j].time;
+              }
+
+            bool beyond_origin = (direction == DIR_BUY) ? (extreme <= p1_price) : (extreme >= p1_price);
+            if(beyond_origin)
+               return false;
+
             bool recovered = (direction == DIR_BUY) ? (rates[j].close > p3_level) : (rates[j].close < p3_level);
             if(recovered)
               {
                points.sweep_price = extreme;
-               points.sweep_time  = rates[i].time;
+               points.sweep_time  = extreme_time;
                return true;
               }
            }
