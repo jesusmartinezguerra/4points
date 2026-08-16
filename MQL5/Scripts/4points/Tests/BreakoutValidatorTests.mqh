@@ -71,6 +71,14 @@ void RunBreakoutValidatorTests()
    SBreakoutMetrics metricsWeakBody; bool passedWeakBody;
    v.Evaluate(ratesWeakBody, DIR_BUY, 100.0, 0.10, metricsWeakBody, passedWeakBody);
    Assert(!passedWeakBody, "BreakoutValidator: body_ratio insuficiente rechaza el breakout");
+   // Las metricas deben quedar pobladas aunque el setup sea rechazado (el journal de la
+   // Fase 2 las necesita tambien para los setups descartados). body_ratio=1.1/2.2=0.50
+   // exacto para estos datos - verificado arriba. Si un futuro refactor moviera el calculo
+   // de metricas detras de la comprobacion de "passed" (o lo envolviera en un if(passed)),
+   // este Assert lo detectaria: metricsWeakBody.body_ratio se quedaria en el default 0.0
+   // de SBreakoutMetrics::Reset(), fuera del rango 0.49..0.51.
+   Assert(metricsWeakBody.body_ratio > 0.49 && metricsWeakBody.body_ratio < 0.51,
+          "BreakoutValidator: metrics quedan pobladas aunque el breakout sea rechazado (body_ratio)");
 
    // --- Caso 3: breakout de mecha (close_pos bajo) - cierre lejos del maximo del rango.
    // CORREGIDO respecto al brief original: los valores del brief (open=100.0, high=102.0,
@@ -104,6 +112,11 @@ void RunBreakoutValidatorTests()
    SBreakoutMetrics metricsPenetration; bool passedPenetration;
    v.Evaluate(ratesPenetration, DIR_BUY, 100.0, 0.10, metricsPenetration, passedPenetration);
    Assert(!passedPenetration, "BreakoutValidator: penetracion insuficiente del nivel rechaza el breakout");
+   // Misma razon que en el Caso 2: penetration=100.05-100=0.05, spread_price=0.10 ->
+   // penetration_spreads=0.05/0.10=0.5 exacto - verificado arriba. Confirma que
+   // penetration_spreads se calcula y guarda en metrics pese a passed=false.
+   Assert(metricsPenetration.penetration_spreads > 0.4 && metricsPenetration.penetration_spreads < 0.6,
+          "BreakoutValidator: metrics quedan pobladas aunque el breakout sea rechazado (penetration_spreads)");
 
    // --- Caso 5: no rompe el nivel (close <= level) -> rechazado por la condicion 1 sin importar el resto.
    MqlRates candleNoBreak = BuildBreakoutCandle(99.0, 100.1, 98.9, 99.9);
