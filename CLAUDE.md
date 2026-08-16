@@ -10,7 +10,7 @@ El diseño completo está en `docs/superpowers/specs/2026-08-06-4points-continua
 
 ## Estado actual
 
-Fase 0 completada (scaffolding, `Types.mqh`, `Config.mqh`, deploy). La siguiente es la **Fase 1**: escribir los detectores en `MQL5/Include/4points/` junto con `TestRunner.mq5`. No existe todavía ni el indicador validador ni el EA.
+Fase 1 completada: los seis detectores en `MQL5/Include/4points/` (`SwingDetector`, `StructureState`, `TrendFilter`, `PatternDetector`, `LiquiditySweep`, `BreakoutValidator`) más el `AtrUtils.mqh` compartido, con `TestRunner.mq5` en 100% PASS. La siguiente es la **Fase 2**: el indicador validador (`FourPoints_Validator.mq5`), que pinta los setups sobre histórico sin duplicar lógica de estos detectores. No existe todavía ni el indicador ni el EA.
 
 El orden de fases no es negociable: **núcleo con tests → indicador validador → medición estadística → EA**. La Fase 3 es un gate real; el EA no se escribe hasta que los datos confirmen que el 1:1 es viable en M1.
 
