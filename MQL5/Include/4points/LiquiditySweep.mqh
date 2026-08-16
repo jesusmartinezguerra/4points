@@ -132,8 +132,20 @@ private:
          if(beyond_p3)
             break; // eso ya es un BREACH_P3, no liquidez interna
 
+         // Politica fail-closed del centinela -1.0 de SimpleATR (ver AtrUtils.mqh).
+         // La version anterior degradaba a tol=0.0 cuando el ATR no estaba
+         // disponible, asumiendo que una tolerancia nula solo puede ser mas
+         // estricta. No es cierto en ambos sentidos: con tol=0 una vela apenas
+         // mas extrema que el cluster pasa a REDEFINIR el cluster (mas extremo,
+         // por tanto mas facil de recuperar despues) en lugar de contarse como
+         // parte del mismo cluster, de modo que hay series en las que tol=0
+         // detecta un barrido que con la tolerancia real no existiria. Como
+         // puede ser permisivo, se rechaza: sin ATR no hay "extremos iguales"
+         // medibles y el modo INTERNAL no puede pronunciarse.
          double atr = SimpleATR(rates, m_atr_period, i);
-         double tol = (atr > 0.0) ? m_eq_tol_atr * atr : 0.0;
+         if(m_eq_tol_atr > 0.0 && atr <= 0.0)
+            return false;
+         double tol = (m_eq_tol_atr > 0.0) ? m_eq_tol_atr * atr : 0.0;
          bool more_extreme = (direction == DIR_BUY) ? (candidate < cluster_extreme - tol)
                                                       : (candidate > cluster_extreme + tol);
          if(cluster_shift < 0 || more_extreme)

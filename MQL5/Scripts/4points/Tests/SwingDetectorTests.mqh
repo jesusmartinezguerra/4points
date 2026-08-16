@@ -1,6 +1,7 @@
 #ifndef FOURPOINTS_SWINGDETECTORTESTS_MQH
 #define FOURPOINTS_SWINGDETECTORTESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/SwingDetector.mqh>
 
 void RunSwingDetectorTests()
@@ -118,6 +119,37 @@ void RunSwingDetectorTests()
    if(ArraySize(swings3) == 1)
       Assert(swings3[0].type == SWING_LOW && MathAbs(swings3[0].price - 90.0) < 0.0001,
              "SwingDetector: sobrevive el low, el high queda filtrado");
+
+   // --- Caso 3b: politica fail-closed del centinela de ATR (ver AtrUtils.mqh).
+   // Mismos datos exactos (rates3) y mismo min_leg_atr en los dos detectores; lo
+   // UNICO que cambia es atr_period, y con el la disponibilidad del ATR:
+   //
+   //   atr_period=3 -> SimpleATR(rates3, 3, shift=3) = (5.5+5+5)/3 = 5.1666...
+   //       Umbral = 0.5 * 5.1666... = 2.5833...; pierna = |100.5-90.0| = 10.5.
+   //       10.5 >= 2.5833 -> el high SE ACEPTA -> 2 swings.
+   //   atr_period=7 -> SimpleATR exige shift + period < size: 3 + 7 = 10 y
+   //       size(rates3) = 10, luego devuelve el centinela -1.0. La pierna es la
+   //       misma 10.5 y "objetivamente" superaria cualquier umbral razonable,
+   //       pero no hay unidad de medida -> el high SE DESCARTA -> 1 swing.
+   //
+   // El low de bar_shift=7 no interviene: es el primer swing de la lista y el
+   // filtro de pierna solo se aplica al comparar contra un swing anterior.
+   //
+   // Este caso es la regresion de la version anterior del codigo
+   // (`if(atr > 0.0 && leg < m_min_leg_atr * atr)`), que con ATR indisponible
+   // ACEPTABA la pierna sin medirla: con atr_period=7 habria devuelto 2 swings.
+   // No era un artefacto de test - los swings de las ~atr_period velas mas
+   // antiguas de cualquier ventana real caian en esa zona en toda evaluacion.
+   CSwingDetector det_atr_ok(2, 2, 0.5, 3);   // ATR medible: la pierna pasa el filtro
+   SSwing swings3b_ok[];
+   det_atr_ok.Evaluate(rates3, swings3b_ok);
+   Assert(ArraySize(swings3b_ok) == 2, "SwingDetector: con ATR medible la pierna larga se acepta");
+
+   CSwingDetector det_atr_missing(2, 2, 0.5, 7); // ATR indisponible (shift+period >= size)
+   SSwing swings3b_missing[];
+   det_atr_missing.Evaluate(rates3, swings3b_missing);
+   Assert(ArraySize(swings3b_missing) == 1,
+          "SwingDetector: sin ATR medible el filtro de pierna es fail-closed y descarta el swing");
 
    // --- Caso 4: los ultimos `right` bars no permiten confirmar swing ahi.
    // Con fractal 2/2 y 14 velas, el ultimo swing detectable esta en indice <= n-1-2=11.

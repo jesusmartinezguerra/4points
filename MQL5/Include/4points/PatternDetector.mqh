@@ -99,6 +99,8 @@ public:
               }
             double leg = MathAbs(s.price - cur.p1.price);
             double atr = SimpleATR(rates, m_atr_period, s.bar_shift);
+            // Fail-closed frente al centinela -1.0 de SimpleATR (ver AtrUtils.mqh):
+            // sin ATR no se puede medir el impulso, asi que P2 no se confirma.
             if(atr > 0.0 && leg >= m_min_impulse_atr * atr)
               {
                cur.p2 = s;
@@ -156,6 +158,13 @@ public:
                // patron sobre un pullback que nunca deberia haberse aceptado.
                double leg_p1_p2 = MathAbs(cur.p2.price - cur.p1.price);
                double retrace = (leg_p1_p2 > 0.0) ? MathAbs(cur.p2.price - s.price) / leg_p1_p2 : 0.0;
+               // Decision deliberada: un candidato de reemplazo fuera de rango
+               // (tanto demasiado profundo como demasiado superficial) se ignora y
+               // el P3 vigente sobrevive; NO invalida el intento en curso como si
+               // hace `!higher_low_ok` unas lineas mas arriba. El razonamiento es
+               // que el P3 vigente ya paso el filtro y sigue siendo estructuralmente
+               // valido mientras el precio no rompa P1. Pendiente de revisar con los
+               // datos de la Fase 3 por si conviene resetear el intento.
                if(retrace >= m_min_retrace && retrace <= m_max_retrace)
                   cur.p3 = s;
                continue;

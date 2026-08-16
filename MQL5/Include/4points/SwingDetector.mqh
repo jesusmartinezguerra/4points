@@ -112,10 +112,27 @@ private:
         }
 
       // Alterna correctamente: aplica el filtro de pierna minima contra el swing anterior.
-      double leg = MathAbs(candidate.price - last.price);
-      double atr = SimpleATR(rates, m_atr_period, candidate.bar_shift);
-      if(atr > 0.0 && leg < m_min_leg_atr * atr)
-         return; // pierna insuficiente: se descarta, no se actualiza last_type
+      //
+      // Politica fail-closed del centinela de SimpleATR (ver AtrUtils.mqh). La
+      // version anterior era `if(atr > 0.0 && leg < m_min_leg_atr * atr)`, que
+      // con ATR indisponible ACEPTABA la pierna sin medirla. No era solo un
+      // artefacto de los tests: SimpleATR exige shift + period < size y aqui se
+      // llama con shift = candidate.bar_shift, asi que los swings de las
+      // ~atr_period velas mas antiguas de CUALQUIER ventana cargada burlaban el
+      // filtro en toda evaluacion real. Ahora sin ATR no hay medida y el
+      // candidato se descarta.
+      //
+      // Con m_min_leg_atr <= 0 el filtro esta desactivado por configuracion
+      // (`leg < 0 * atr` nunca se cumple con ningun ATR), asi que no hay nada
+      // que medir y no se llama siquiera a SimpleATR. Config::Validate exige
+      // min_leg_atr > 0, de modo que en produccion siempre se entra al filtro.
+      if(m_min_leg_atr > 0.0)
+        {
+         double leg = MathAbs(candidate.price - last.price);
+         double atr = SimpleATR(rates, m_atr_period, candidate.bar_shift);
+         if(atr <= 0.0 || leg < m_min_leg_atr * atr)
+            return; // pierna insuficiente o no medible: se descarta, no se actualiza last_type
+        }
 
       ArrayResize(swings, count + 1);
       swings[count] = candidate;
