@@ -8,14 +8,14 @@ Símbolos iniciales: **XAUUSD** y **EURUSD**. La arquitectura admite más instru
 
 ## Estado
 
-**Fase 0 — completada.** Scaffolding, tipos y configuración.
+**Fase 1 — completada.** Detectores del núcleo con 100% de tests sintéticos en verde.
 
 El proyecto avanza en fases y el orden es deliberado:
 
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Scaffolding, `Types.mqh`, `Config.mqh`, deploy | ✅ |
-| 1 | Detectores + `TestRunner` con series sintéticas | pendiente |
+| 1 | Detectores + `TestRunner` con series sintéticas | ✅ |
 | 2 | Indicador validador: pinta el patrón sobre el histórico | pendiente |
 | 3 | Medición estadística y **gate de viabilidad** | pendiente |
 | 4 | Expert Advisor con gestión de riesgo | pendiente |
