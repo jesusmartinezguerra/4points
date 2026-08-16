@@ -14,6 +14,7 @@
 #include "Tests/TrendFilterTests.mqh"
 #include "Tests/PatternDetectorTests.mqh"
 #include "Tests/LiquiditySweepTests.mqh"
+#include "Tests/BreakoutValidatorTests.mqh"
 
 void OnStart()
   {
@@ -25,6 +26,7 @@ void OnStart()
    RunTrendFilterTests();
    RunPatternDetectorTests();
    RunLiquiditySweepTests();
+   RunBreakoutValidatorTests();
 
    PrintTestSummary();
   }
