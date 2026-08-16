@@ -59,19 +59,28 @@ public:
 
       MqlRates c = rates[0];
       double range = c.high - c.low;
-      if(range <= 0.0)
-         return true;
+      double body  = MathAbs(c.close - c.open);
+      double atr   = SimpleATR(rates, m_atr_period, 1); // hasta la vela anterior, sin mirar la de breakout
 
-      double body = MathAbs(c.close - c.open);
-      double atr  = SimpleATR(rates, m_atr_period, 1); // hasta la vela anterior, sin mirar la de breakout
-
-      metrics.body_ratio = body / range;
-      metrics.close_pos  = (direction == DIR_BUY) ? (c.close - c.low) / range : (c.high - c.close) / range;
-      metrics.body_atr   = (atr > 0.0) ? body / atr : 0.0;
-
+      // La penetracion del nivel se calcula ANTES del guard de rango: no depende
+      // del rango de la vela, solo de close y level. El journal de la Fase 2
+      // registra tambien los setups rechazados y necesita metricas reales en ellos;
+      // devolver aqui los ceros de Reset() habria dejado sin dato precisamente a
+      // las velas planas/doji, que son un caso de rechazo frecuente.
       double penetration = (direction == DIR_BUY) ? (c.close - level) : (level - c.close);
       metrics.penetration_atr     = (atr > 0.0) ? penetration / atr : 0.0;
       metrics.penetration_spreads = (spread_price > 0.0) ? penetration / spread_price : 0.0;
+
+      // Sin rango (high == low) body_ratio, close_pos y body_atr son indefinidos o
+      // triviales: se quedan en el 0.0 de Reset() y el breakout se rechaza.
+      if(range <= 0.0)
+         return true;
+
+      metrics.body_ratio = body / range;
+      metrics.close_pos  = (direction == DIR_BUY) ? (c.close - c.low) / range : (c.high - c.close) / range;
+      // Fail-closed frente al centinela -1.0 de SimpleATR (ver AtrUtils.mqh): sin
+      // ATR, body_atr queda en 0 y cond_body_atr de abajo rechaza el breakout.
+      metrics.body_atr   = (atr > 0.0) ? body / atr : 0.0;
 
       bool cond_close     = (direction == DIR_BUY) ? (c.close > level) : (c.close < level);
       bool cond_body      = metrics.body_ratio >= m_min_body_ratio;
