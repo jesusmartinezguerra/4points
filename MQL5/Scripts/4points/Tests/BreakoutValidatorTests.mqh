@@ -1,6 +1,7 @@
 #ifndef FOURPOINTS_BREAKOUTVALIDATORTESTS_MQH
 #define FOURPOINTS_BREAKOUTVALIDATORTESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/BreakoutValidator.mqh>
 
 MqlRates BuildBreakoutCandle(const double open, const double high, const double low, const double close)
@@ -125,6 +126,57 @@ void RunBreakoutValidatorTests()
    SBreakoutMetrics metricsNoBreak; bool passedNoBreak;
    v.Evaluate(ratesNoBreak, DIR_BUY, 100.0, 0.10, metricsNoBreak, passedNoBreak);
    Assert(!passedNoBreak, "BreakoutValidator: cierre que no supera el nivel rechaza el breakout");
+
+   // --- Caso 6: las 5 condiciones se cumplen en DIR_SELL (espejo del Caso 1).
+   // Hasta este caso TODOS los tests de esta bateria usaban DIR_BUY, dejando sin
+   // cobertura las ramas SELL de close_pos, cond_close y penetration.
+   //
+   // Espejo del Caso 1 reflejado sobre level=100:
+   //   open=100.0, close=98.4 -> body = |98.4 - 100.0| = 1.6
+   //   high=100.1, low=98.3   -> range = 100.1 - 98.3 = 1.8
+   //   body_ratio = 1.6 / 1.8 = 0.889 >= 0.55                      pasa
+   //   close_pos (SELL) = (high - close)/range = (100.1-98.4)/1.8
+   //                    = 1.7/1.8 = 0.944 >= 0.70                  pasa
+   //   ATR de la historia plana = 2.0 -> body_atr = 1.6/2.0 = 0.8 >= 0.50  pasa
+   //   penetration (SELL) = level - close = 100.0 - 98.4 = 1.6
+   //   min_penetration = max(0.10*2.0, 1.50*0.10) = max(0.2, 0.15) = 0.2
+   //                    -> 1.6 >= 0.2                              pasa
+   //   cond_close (SELL): 98.4 < 100.0                             pasa
+   // Geometria OHLC valida: low 98.3 <= close 98.4 < open 100.0 <= high 100.1.
+   MqlRates candleSellOK = BuildBreakoutCandle(100.0, 100.1, 98.3, 98.4);
+   MqlRates ratesSellOK[];
+   BuildBreakoutHistory(candleSellOK, ratesSellOK);
+   SBreakoutMetrics metricsSellOK; bool passedSellOK;
+   v.Evaluate(ratesSellOK, DIR_SELL, 100.0, 0.10, metricsSellOK, passedSellOK);
+   Assert(passedSellOK, "BreakoutValidator: las 5 condiciones cumplidas en DIR_SELL dan passed=true");
+   if(passedSellOK)
+      Assert(metricsSellOK.close_pos > 0.94 && metricsSellOK.close_pos < 0.95,
+             "BreakoutValidator: close_pos en DIR_SELL se mide desde el maximo (0.944)");
+
+   // --- Caso 7: vela plana (doji con high == low) -> rechazada, pero las metricas
+   // que NO dependen del rango deben quedar calculadas igualmente.
+   // Antes de este fix, el guard `if(range <= 0.0) return true;` estaba delante del
+   // calculo de la penetracion y devolvia los ceros de Reset(), dejando al journal
+   // de la Fase 2 sin dato para un caso de rechazo frecuente.
+   //
+   // Vela: open=high=low=close=100.5, level=100.0, spread_price=0.10, ATR=2.0.
+   //   range = 0 -> body_ratio, close_pos y body_atr se quedan en 0.0 (correcto:
+   //   sin rango son indefinidos).
+   //   penetration = close - level = 100.5 - 100.0 = 0.5
+   //   penetration_atr     = 0.5 / 2.0  = 0.25
+   //   penetration_spreads = 0.5 / 0.10 = 5.0
+   MqlRates candleDoji = BuildBreakoutCandle(100.5, 100.5, 100.5, 100.5);
+   MqlRates ratesDoji[];
+   BuildBreakoutHistory(candleDoji, ratesDoji);
+   SBreakoutMetrics metricsDoji; bool passedDoji;
+   v.Evaluate(ratesDoji, DIR_BUY, 100.0, 0.10, metricsDoji, passedDoji);
+   Assert(!passedDoji, "BreakoutValidator: vela sin rango (doji plano) rechaza el breakout");
+   Assert(MathAbs(metricsDoji.penetration_atr - 0.25) < 0.0001,
+          "BreakoutValidator: penetration_atr se calcula aunque la vela no tenga rango");
+   Assert(MathAbs(metricsDoji.penetration_spreads - 5.0) < 0.0001,
+          "BreakoutValidator: penetration_spreads se calcula aunque la vela no tenga rango");
+   Assert(MathAbs(metricsDoji.body_ratio) < 0.0001 && MathAbs(metricsDoji.close_pos) < 0.0001,
+          "BreakoutValidator: sin rango, body_ratio y close_pos quedan en su valor por defecto");
   }
 
 #endif // FOURPOINTS_BREAKOUTVALIDATORTESTS_MQH

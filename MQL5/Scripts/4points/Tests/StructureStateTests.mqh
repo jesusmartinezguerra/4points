@@ -1,7 +1,25 @@
 #ifndef FOURPOINTS_STRUCTURESTATETESTS_MQH
 #define FOURPOINTS_STRUCTURESTATETESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/StructureState.mqh>
+
+// AVISO PARA QUIEN EDITE LOS CASOS 2 Y 3
+//
+// Los `close` que disparan el BOS (c2[9]=115, c3[6]=115, c3[13]=80) quedan
+// deliberadamente FUERA de los limites high/low de su propia vela (high=100,
+// low=95). Eso es fisicamente imposible en una vela real, pero aqui es
+// intencionado y no invalida el test: CSwingDetector solo lee .high y .low para
+// confirmar fractales, y CStructureState solo lee .close para detectar el BOS;
+// ninguno de los dos compara close contra high/low.
+//
+// Se intento corregir la geometria y NO es un cambio local: subir el high de esa
+// vela hasta contener el close la convierte en un fractal alcista propio, que
+// desplaza el "ultimo swing high" y rompe justo el BOS que el caso pretende
+// medir. Hacerlo bien exige redisenar el escenario entero (mas velas, otra
+// separacion entre fractales). Si alguien lo aborda, que verifique
+// empiricamente el numero y la posicion de los swings resultantes antes de
+// confiar en los nuevos valores.
 
 void RunStructureStateTests()
   {
@@ -34,6 +52,7 @@ void RunStructureStateTests()
      }
    h2[3] = 110.0; // swing high candidato (fractal 2/2, confirmado en indice 3 con vecinos 1,2,4,5)
    c2[9] = 115.0; // cierre posterior por encima del swing high -> BOS alcista
+                  // (close fuera de [low,high] a proposito: ver el aviso de la cabecera)
    MqlRates rates2[];
    BuildRatesSeries(t2, o2, h2, l2, c2, rates2);
    ETrendState s2;
@@ -51,9 +70,11 @@ void RunStructureStateTests()
       o3[i] = 97.5; c3[i] = 97.5;
      }
    h3[2] = 110.0;  // swing high
-   c3[6] = 115.0;  // BOS alcista -> BULL
+   c3[6] = 115.0;  // BOS alcista -> BULL (close fuera de [low,high] a proposito:
+                   // ver el aviso de la cabecera)
    l3[8] = 85.0;   // swing low tras el BOS (confirmado con vecinos 6,7,9,10)
-   c3[13] = 80.0;  // cierre por debajo del swing low -> BOS bajista
+   c3[13] = 80.0;  // cierre por debajo del swing low -> BOS bajista (idem: close
+                   // fuera de [low,high] a proposito)
    MqlRates rates3[];
    BuildRatesSeries(t3, o3, h3, l3, c3, rates3);
    ETrendState s3;

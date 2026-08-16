@@ -1,6 +1,7 @@
 #ifndef FOURPOINTS_ATRUTILSTESTS_MQH
 #define FOURPOINTS_ATRUTILSTESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/AtrUtils.mqh>
 
 void RunAtrUtilsTests()

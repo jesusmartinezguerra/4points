@@ -1,6 +1,7 @@
 #ifndef FOURPOINTS_PATTERNDETECTORTESTS_MQH
 #define FOURPOINTS_PATTERNDETECTORTESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/PatternDetector.mqh>
 
 // Construye una serie de 20 velas planas (high=100, low=95, open=close=97.5) y aplica

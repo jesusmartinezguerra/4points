@@ -32,6 +32,13 @@ void Assert(const bool condition, const string case_name)
 void PrintTestSummary()
   {
    PrintFormat("%d/%d PASS", g_tests_passed, g_tests_total);
+   // Una linea explicita cuando algo falla: con solo el "N/M PASS" hay que
+   // comparar dos numeros a ojo en un log largo para saber si la suite paso.
+   if(g_tests_passed < g_tests_total)
+      PrintFormat("SUITE FAILED: %d of %d cases did not pass",
+                  g_tests_total - g_tests_passed, g_tests_total);
+   else
+      PrintFormat("SUITE OK: all %d cases passed", g_tests_total);
   }
 
 //+------------------------------------------------------------------+

@@ -1,6 +1,7 @@
 #ifndef FOURPOINTS_LIQUIDITYSWEEPTESTS_MQH
 #define FOURPOINTS_LIQUIDITYSWEEPTESTS_MQH
 
+#include "TestHelpers.mqh"
 #include <4points/LiquiditySweep.mqh>
 
 // P4 queda en el indice de rates[] correspondiente a bar_shift; el resto de
@@ -11,6 +12,17 @@ SPatternPoints BuildPointsForSweep(const int p4_shift, const double p1_price, co
    points.p1.type = SWING_LOW; points.p1.price = p1_price;
    points.p3.type = SWING_LOW; points.p3.price = p3_price;
    points.p4.type = SWING_HIGH; points.p4.bar_shift = p4_shift;
+   return points;
+  }
+
+// Espejo del anterior para DIR_SELL: P1 y P3 son swing HIGH (P3 mas bajo que P1)
+// y P4 es un swing LOW. Solo .price, .bar_shift y .type (via IsValid) se leen.
+SPatternPoints BuildPointsForSweepSell(const int p4_shift, const double p1_price, const double p3_price)
+  {
+   SPatternPoints points;
+   points.p1.type = SWING_HIGH; points.p1.price = p1_price;
+   points.p3.type = SWING_HIGH; points.p3.price = p3_price;
+   points.p4.type = SWING_LOW;  points.p4.bar_shift = p4_shift;
    return points;
   }
 
@@ -176,6 +188,82 @@ void RunLiquiditySweepTests()
    bool sweptG;
    sweepG.Evaluate(ratesG, DIR_BUY, pointsG, sweptG);
    Assert(!sweptG, "LiquiditySweep: max_sweep_bars=1 descarta una recuperacion fuera de la ventana");
+
+   // --- Caso 8: BREACH_P3 valido en DIR_SELL, espejo exacto del Caso 1.
+   // Hasta este caso TODOS los tests de esta bateria usaban DIR_BUY, de modo que
+   // las seis ramas ternarias `(direction == DIR_BUY) ? ... : ...` de
+   // LiquiditySweep.mqh no tenian ninguna cobertura por el lado SELL.
+   //
+   // Espejo: P1 pasa a ser un swing HIGH en 120 y P3 un swing HIGH mas bajo en
+   // 110. El fondo plano de la serie (high=100, low=95) queda POR DEBAJO de
+   // P3=110, igual que en el Caso 1 quedaba por encima de P3=90, asi que
+   // ninguna vela por defecto perfora nada.
+   //
+   //   s=3 (indice cronologico k=4): o=111.5 h=112.0 l=111.0 c=111.0
+   //       perfora P3 (high 112 > 110) pero se queda muy por debajo de P1=120,
+   //       y NO recupera en su propia vela (close 111 >= 110, para SELL
+   //       recuperar es cerrar por DEBAJO de P3).
+   //   s=2 (indice cronologico k=5): o=109.3 h=109.5 l=108.5 c=109.0
+   //       recupera: close 109.0 < P3=110.
+   //
+   // Traza a mano del bucle: search_start = p4_shift-1 = 4. i=4 es una vela por
+   // defecto (high=100), no perfora -> continue. i=3 perfora -> extreme = high =
+   // 112. Bucle interno: j=3, candidate 112 no supera a extreme 112, beyond_origin
+   // (112 >= 120) falso, recovered (111 < 110) falso. j=2: candidate 109.5 no es
+   // mas extremo, beyond_origin falso, recovered (109.0 < 110) CIERTO ->
+   // swept=true con sweep_price=112. Geometria OHLC valida en ambas velas
+   // (low <= open,close <= high).
+   MqlRates ratesH[];
+   { datetime tH[]; double oH[], hH[], lH[], cH[];
+     ArrayResize(tH,n); ArrayResize(oH,n); ArrayResize(hH,n); ArrayResize(lH,n); ArrayResize(cH,n);
+     for(int i=0;i<n;i++){ tH[i]=t[i]; hH[i]=h[i]; lH[i]=l[i]; oH[i]=o[i]; cH[i]=c[i]; }
+     oH[4]=111.5; hH[4]=112.0; lH[4]=111.0; cH[4]=111.0; // s=3: perfora P3, no recupera en la misma vela
+     oH[5]=109.3; hH[5]=109.5; lH[5]=108.5; cH[5]=109.0; // s=2: recupera (close < P3)
+     BuildRatesSeries(tH, oH, hH, lH, cH, ratesH); }
+   SPatternPoints pointsH = BuildPointsForSweepSell(5, 120.0, 110.0);
+   CLiquiditySweep sweepH(SWEEP_BREACH_P3, 0.10, 3, 5);
+   bool sweptH;
+   sweepH.Evaluate(ratesH, DIR_SELL, pointsH, sweptH);
+   Assert(sweptH, "LiquiditySweep: BREACH_P3 valido en DIR_SELL detecta el barrido");
+   if(sweptH)
+     {
+      Assert(pointsH.sweep_kind == SWEEP_BREACH_P3, "LiquiditySweep: modo detectado en DIR_SELL es BREACH_P3");
+      Assert(MathAbs(pointsH.sweep_price - 112.0) < 0.0001,
+             "LiquiditySweep: en DIR_SELL el extremo del barrido es el maximo (112), no el minimo");
+     }
+
+   // --- Caso 9: en DIR_SELL, perforar mas alla de P1 tambien invalida (espejo
+   // del Caso 3). s=3 sube hasta 125, por encima de P1=120.
+   MqlRates ratesI[];
+   { datetime tI[]; double oI[], hI[], lI[], cI[];
+     ArrayResize(tI,n); ArrayResize(oI,n); ArrayResize(hI,n); ArrayResize(lI,n); ArrayResize(cI,n);
+     for(int i=0;i<n;i++){ tI[i]=t[i]; hI[i]=h[i]; lI[i]=l[i]; oI[i]=o[i]; cI[i]=c[i]; }
+     oI[4]=123.0; hI[4]=125.0; lI[4]=122.0; cI[4]=124.0; // s=3: perfora mas alla de P1=120
+     oI[5]=109.3; hI[5]=109.5; lI[5]=108.5; cI[5]=109.0; // s=2: recuperaria, pero ya es invalido
+     BuildRatesSeries(tI, oI, hI, lI, cI, ratesI); }
+   SPatternPoints pointsI = BuildPointsForSweepSell(5, 120.0, 110.0);
+   CLiquiditySweep sweepI(SWEEP_BREACH_P3, 0.10, 3, 5);
+   bool sweptI;
+   sweepI.Evaluate(ratesI, DIR_SELL, pointsI, sweptI);
+   Assert(!sweptI, "LiquiditySweep: en DIR_SELL perforar mas alla de P1 invalida el barrido");
+
+   // --- Caso 10: politica fail-closed del centinela de ATR en SWEEP_INTERNAL.
+   // Mismos datos exactos del Caso 4 (que SI detecta barrido con atr_period=3),
+   // pero con atr_period=14 sobre una serie de 8 velas: SimpleATR exige
+   // shift + period < size, luego devuelve -1.0 en todos los shift explorados.
+   // Con eq_tol_atr=0.10 > 0 la tolerancia de extremos iguales es inmedible y
+   // el modo INTERNAL no puede pronunciarse -> no hay barrido.
+   //
+   // Verificado a mano contra la implementacion ANTERIOR al fix (tol degradaba a
+   // 0.0 con ATR indisponible): i=4 fijaba el cluster en low=92; i=3 no era mas
+   // extremo (93 < 92 falso) y cerraba en 93.5 > 92 -> habria devuelto
+   // swept=TRUE. El unico motivo por el que ahora da false es la politica
+   // fail-closed, no un escenario vacio.
+   SPatternPoints pointsJ = BuildPointsForSweep(5, 80.0, 90.0);
+   CLiquiditySweep sweepJ(SWEEP_INTERNAL, 0.10, 14, 5); // atr_period=14 > n=8 -> ATR indisponible
+   bool sweptJ;
+   sweepJ.Evaluate(ratesD, DIR_BUY, pointsJ, sweptJ);
+   Assert(!sweptJ, "LiquiditySweep: sin ATR medible la tolerancia de INTERNAL es fail-closed (no hay barrido)");
   }
 
 #endif // FOURPOINTS_LIQUIDITYSWEEPTESTS_MQH
